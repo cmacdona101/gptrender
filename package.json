@@ -1,0 +1,29 @@
+{
+  "name": "gptrenderer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:firefox": "node tools/build.mjs firefox",
+    "build:chrome": "node tools/build.mjs chrome",
+    "run:firefox": "npm run build:firefox && web-ext run --source-dir dist/firefox",
+    "build:xpi": "npm run build:firefox && web-ext build --source-dir dist/firefox --artifacts-dir dist",
+    "zip:chrome": "npm run build:chrome && cd dist/chrome && zip -r ../gpt-diagrams-chrome.zip ."
+  },
+  "devDependencies": {
+    "web-ext": "^8.10.0"
+  },
+  "version": "1.0.0",
+  "description": "Chrome and Firefox Extensions to visually render diagrams direct from AI generated code blocks",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cmacdona101/gptrender.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cmacdona101/gptrender/issues"
+  },
+  "homepage": "https://github.com/cmacdona101/gptrender#readme"
+}

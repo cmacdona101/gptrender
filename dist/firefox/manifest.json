@@ -1,0 +1,28 @@
+{
+  "manifest_version": 2,
+  "name": "GPT Diagrams",
+  "version": "0.1.0",
+  "description": "Right click to render DOT with Graphviz. Router and UI are modular for future Mermaid, Cytoscape, and ECharts.",
+  "permissions": ["contextMenus", "activeTab", "tabs", "<all_urls>"],
+  "background": { "scripts": ["background.js"], "persistent": false },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*", "file://*/*"],
+      "js": [
+        "vendor/graphviz/viz.js",
+        "src/content_bootstrap.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    "src/content_router.js",
+    "src/renderers/renderer_graphviz.js",
+    "ui/popup_host.js",
+    "ui/popup_host.css",
+    "vendor/graphviz/viz.js",
+    "vendor/graphviz/full.render.js"
+  ],
+  "applications": { "gecko": { "id": "gpt-diagrams@example.local" } }
+}
