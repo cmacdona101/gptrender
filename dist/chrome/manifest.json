@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "GPT Diagrams",
+  "version": "0.1.0",
+  "description": "Right click to render DOT with Graphviz. Modular router and UI host.",
+  "permissions": ["contextMenus", "scripting", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*", "file://*/*"],
+    "js": [
+      "vendor/graphviz/viz.js",
+      "src/content_bootstrap.js"
+    ],
+    "run_at": "document_idle",
+    "all_frames": true
+  }],
+  "web_accessible_resources": [{
+    "resources": [
+      "src/content_router.js",
+      "src/renderers/renderer_graphviz.js",
+      "ui/popup_host.js",
+      "ui/popup_host.css",
+      "vendor/graphviz/viz.js",
+      "vendor/graphviz/full.render.js"
+    ],
+    "matches": ["<all_urls>"]
+  }],
+  "action": { "default_title": "GPT Diagrams" }
+}
