@@ -2,36 +2,54 @@ import { mkdir, rm, cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-const OUT = join("dist", "firefox");
-
-async function main() {
-  // Clean output
+async function buildFirefox() {
+  const OUT = join("dist", "firefox");
   if (existsSync(OUT)) await rm(OUT, { recursive: true, force: true });
   await mkdir(OUT, { recursive: true });
 
-  // 1) Copy src under dist/firefox/src (preserve folder)
   await mkdir(join(OUT, "src"), { recursive: true });
   await cp("src", join(OUT, "src"), { recursive: true });
-
-  // 2) Copy UI and vendor as-is (router and renderer expect these paths)
   await cp("ui", join(OUT, "ui"), { recursive: true });
   await cp("vendor", join(OUT, "vendor"), { recursive: true });
 
-  // 3) Background: rename background.firefox.js -> background.js at root
   await cp("src/background.firefox.js", join(OUT, "background.js"));
-
-  // 4) Manifest: firefox MV2
   await cp("manifests/manifest.firefox.json", join(OUT, "manifest.json"));
 
-  // 5) Optional: icons if your manifest will reference them later
-  try {
-    await cp("icons", join(OUT, "icons"), { recursive: true });
-  } catch { /* ignore if missing */ }
-
+  try { await cp("icons", join(OUT, "icons"), { recursive: true }); } catch {}
   console.log("Built Firefox to", OUT);
 }
 
-main().catch((e) => {
-  console.error("Build failed:", e);
+async function buildChrome() {
+  const OUT = join("dist", "chrome");
+  if (existsSync(OUT)) await rm(OUT, { recursive: true, force: true });
+  await mkdir(OUT, { recursive: true });
+
+  await mkdir(join(OUT, "src"), { recursive: true });
+  await cp("src", join(OUT, "src"), { recursive: true });
+  await cp("ui", join(OUT, "ui"), { recursive: true });
+  await cp("vendor", join(OUT, "vendor"), { recursive: true });
+
+  await cp("src/background.chrome.js", join(OUT, "background.js"));
+  await cp("manifests/manifest.chrome.json", join(OUT, "manifest.json"));
+
+  try { await cp("icons", join(OUT, "icons"), { recursive: true }); } catch {}
+  console.log("Built Chrome to", OUT);
+}
+
+const target = process.argv[2];
+if (!target) {
+  console.error("Usage: node tools/build.mjs <firefox|chrome|all>");
   process.exit(1);
-});
+}
+
+if (target === "firefox") {
+  await buildFirefox();
+} else if (target === "chrome") {
+  await buildChrome();
+} else if (target === "all") {
+  await buildFirefox();
+  await buildChrome();
+} else {
+  console.error("Unknown target:", target);
+  process.exit(1);
+}

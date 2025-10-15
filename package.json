@@ -7,7 +7,9 @@
     "build:chrome": "node tools/build.mjs chrome",
     "run:firefox": "npm run build:firefox && web-ext run --source-dir dist/firefox",
     "build:xpi": "npm run build:firefox && web-ext build --source-dir dist/firefox --artifacts-dir dist",
-    "zip:chrome": "npm run build:chrome && cd dist/chrome && zip -r ../gpt-diagrams-chrome.zip ."
+    "zip:chrome": "npm run build:chrome && cd dist/chrome && zip -r ../gpt-diagrams-chrome.zip .",
+	"zip:chrome-ps": "npm run build:chrome && powershell -NoProfile -Command \"Compress-Archive -Path dist\\chrome\\* -DestinationPath dist\\gpt-diagrams-chrome.zip -Force\"",
+	"build:all": "node tools/build.mjs all"
   },
   "devDependencies": {
     "web-ext": "^8.10.0"
