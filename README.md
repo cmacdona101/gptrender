@@ -14,13 +14,67 @@ Right-click on a DOT code block in any web page (including ChatGPT) and render i
 ## Project structure
 
 ```
-gptrender/
-├── background.js
-├── content.js
-├── vendor/
-│   ├── viz.js
-│   └── full.render.js
-├── icons/
+gptrender
+├── dist
+│   ├── chrome
+│   │   ├── icons
+│   │   ├── src
+│   │   │   ├── renderers
+│   │   │   │   └── renderer_graphviz.js
+│   │   │   ├── background.chrome.js
+│   │   │   ├── background.firefox.js
+│   │   │   ├── content_bootstrap.js
+│   │   │   └── content_router.js
+│   │   ├── ui
+│   │   │   ├── popup_host.css
+│   │   │   └── popup_host.js
+│   │   ├── vendor
+│   │   │   └── graphviz
+│   │   │       ├── full.render.js
+│   │   │       └── viz.js
+│   │   ├── background.js
+│   │   └── manifest.json
+│   ├── firefox
+│   │   ├── icons
+│   │   ├── src
+│   │   │   ├── renderers
+│   │   │   │   └── renderer_graphviz.js
+│   │   │   ├── background.chrome.js
+│   │   │   ├── background.firefox.js
+│   │   │   ├── content_bootstrap.js
+│   │   │   └── content_router.js
+│   │   ├── ui
+│   │   │   ├── popup_host.css
+│   │   │   └── popup_host.js
+│   │   ├── vendor
+│   │   │   └── graphviz
+│   │   │       ├── full.render.js
+│   │   │       └── viz.js
+│   │   ├── background.js
+│   │   └── manifest.json
+│   └── gpt-diagrams-chrome.zip
+├── icons
+├── manifests
+│   ├── manifest.chrome.json
+│   └── manifest.firefox.json
+├── src
+│   ├── renderers
+│   │   └── renderer_graphviz.js
+│   ├── background.chrome.js
+│   ├── background.firefox.js
+│   ├── content_bootstrap.js
+│   └── content_router.js
+├── tools
+│   └── build.mjs
+├── ui
+│   ├── popup_host.css
+│   └── popup_host.js
+├── vendor
+│   └── graphviz
+│       ├── full.render.js
+│       └── viz.js
+├── LICENSE
+├── package.json
 └── README.md
 ```
 
