@@ -2,9 +2,19 @@
   position: fixed;
   top: 10%;
   left: 10%;
-  right: 10%;
-  max-height: 80vh;
-  overflow: auto;
+  /* Explicit size so native CSS resize works */
+  width: 70vw;
+  height: 70vh;
+
+  /* Resizable shell */
+  resize: both;
+  overflow: hidden; /* scrollbars live in the body, not the shell */
+  box-sizing: border-box;
+
+  /* Remove viewport caps so it can be larger than the page viewport */
+  min-width: 320px;
+  min-height: 200px;
+  /* no max-width / max-height caps */
   background: #fff;
   color: #000;
   border: 1px solid #ccc;
@@ -13,12 +23,32 @@
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
   z-index: 2147483647;
 }
+
 .gpt-host-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  user-select: none;
+  cursor: move; /* draggable handle */
 }
+
+.gpt-host-bar button {
+  appearance: none;
+  border: 1px solid #bbb;
+  background: #f8f8f8;
+  color: #222;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.gpt-host-bar button:hover {
+  background: #f0f0f0;
+}
+
 .gpt-host-body {
+  /* Fill remaining space so only inner content scrolls */
   overflow: auto;
+  height: calc(100% - 40px); /* approx bar height plus spacing */
 }
