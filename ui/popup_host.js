@@ -4,17 +4,82 @@
  * UI host module
  * Creates a reusable modal container on demand
  * Exposes window.__gptHost.open() -> returns a mount element
- * draggable by title bar, ESC to close, on-screen clamping
+ * Variant: no clamping, raw bounds persisted and restored
  */
 
 (function () {
   if (window.__gptHost) return;
 
-  function clamp(n, min, max) {
-    return Math.max(min, Math.min(max, n));
+  const STORAGE_KEY = `gptd_host_bounds_v1:${location.host}`;
+  const MIN_W = 320;
+  const MIN_H = 200;
+
+  function getViewportBounds() {
+    return {
+      w: window.innerWidth || document.documentElement.clientWidth || 1024,
+      h: window.innerHeight || document.documentElement.clientHeight || 768
+    };
   }
 
-  function makeDraggable(wrap, bar) {
+  function readSavedBounds() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== "object") return null;
+      const { left, top, width, height } = obj;
+      if (
+        typeof left !== "number" ||
+        typeof top !== "number" ||
+        typeof width !== "number" ||
+        typeof height !== "number"
+      ) {
+        return null;
+      }
+      return { left, top, width, height };
+    } catch {
+      return null;
+    }
+  }
+
+  function coerceMinSize(rect) {
+    const w = Math.max(rect.width, MIN_W);
+    const h = Math.max(rect.height, MIN_H);
+    return { left: rect.left, top: rect.top, width: w, height: h };
+  }
+
+  function saveBoundsFromElement(wrap) {
+    const r = wrap.getBoundingClientRect();
+    const rect = coerceMinSize({
+      left: r.left,
+      top: r.top,
+      width: r.width,
+      height: r.height
+    });
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rect));
+    } catch {}
+  }
+
+  function applyBounds(wrap, rect) {
+    const r = coerceMinSize(rect);
+    wrap.style.left = Math.round(r.left) + "px";
+    wrap.style.top = Math.round(r.top) + "px";
+    wrap.style.width = Math.round(r.width) + "px";
+    wrap.style.height = Math.round(r.height) + "px";
+    wrap.style.right = "";
+  }
+
+  function centerDefaults(wrap) {
+    const vp = getViewportBounds();
+    const width = Math.floor(vp.w * 0.70);
+    const height = Math.floor(vp.h * 0.70);
+    const left = Math.floor((vp.w - width) / 2);
+    const top = Math.floor((vp.h - height) / 2);
+    applyBounds(wrap, { left, top, width, height });
+  }
+
+  function makeDraggable(wrap, bar, onDragEnd) {
     let dragging = false;
     let startX = 0;
     let startY = 0;
@@ -23,32 +88,22 @@
     let prevUserSelect = "";
 
     function onMouseDown(e) {
-      // Only left button and not on a focusable button inside the bar
       if (e.button !== 0) return;
       if (e.target && (e.target.tagName === "BUTTON" || e.target.closest("button"))) return;
 
       dragging = true;
       const rect = wrap.getBoundingClientRect();
 
-      // Compute current left/top in px
-      // If computed styles are percentage, use rect relative to viewport
-      const cs = getComputedStyle(wrap);
-      const leftPx = wrap.style.left || (cs.left || rect.left + "px");
-      const topPx = wrap.style.top || (cs.top || rect.top + "px");
-
-      startLeft = parseFloat(leftPx) || rect.left;
-      startTop = parseFloat(topPx) || rect.top;
+      startLeft = rect.left;
+      startTop = rect.top;
 
       startX = e.clientX;
       startY = e.clientY;
 
-      // Disable text selection during drag
       prevUserSelect = document.body.style.userSelect;
       document.body.style.userSelect = "none";
 
-      // Ensure we are positioned via left/top, not right
       wrap.style.right = "";
-      // Prevent default to avoid text selection
       e.preventDefault();
 
       window.addEventListener("mousemove", onMouseMove, true);
@@ -61,20 +116,8 @@
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
 
-      // Current size for clamping
-      const r = wrap.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      // Keep a small visible margin so it cannot disappear
-      const margin = 8;
-
-      let nextLeft = startLeft + dx;
-      let nextTop = startTop + dy;
-
-      // Clamp so at least margin area remains on screen
-      nextLeft = clamp(nextLeft, margin - (r.width - margin), vw - margin);
-      nextTop = clamp(nextTop, margin - (r.height - margin), vh - margin);
+      const nextLeft = startLeft + dx;
+      const nextTop = startTop + dy;
 
       wrap.style.left = Math.round(nextLeft) + "px";
       wrap.style.top = Math.round(nextTop) + "px";
@@ -84,8 +127,13 @@
       if (!dragging) return;
       dragging = false;
       document.body.style.userSelect = prevUserSelect || "";
+
       window.removeEventListener("mousemove", onMouseMove, true);
       window.removeEventListener("mouseup", onMouseUp, true);
+
+      try {
+        onDragEnd && onDragEnd();
+      } catch {}
     }
 
     bar.addEventListener("mousedown", onMouseDown, true);
@@ -100,12 +148,34 @@
         }
       }
     }
-    // Capture so page scripts are less likely to consume it first
     window.addEventListener("keydown", onKey, true);
-    // Clean up when the panel is removed
     const obs = new MutationObserver(() => {
       if (!document.body.contains(wrap)) {
         window.removeEventListener("keydown", onKey, true);
+        obs.disconnect();
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function observeResizeAndSave(wrap) {
+    // Save on native CSS resize activity
+    let rafId = 0;
+    const ro = new ResizeObserver(() => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        saveBoundsFromElement(wrap);
+      });
+    });
+    ro.observe(wrap);
+
+    // No viewport clamping on resize. We only save the new raw bounds.
+
+    // Cleanup on removal
+    const obs = new MutationObserver(() => {
+      if (!document.body.contains(wrap)) {
+        try { ro.disconnect(); } catch {}
         obs.disconnect();
       }
     });
@@ -123,9 +193,16 @@
     const wrap = document.createElement("div");
     wrap.className = "gpt-host-wrap";
 
-    // Ensure explicit size even if CSS did not apply yet
-    if (!wrap.style.width) wrap.style.width = "70vw";
-    if (!wrap.style.height) wrap.style.height = "70vh";
+    // Initial size and position: try restore, else center defaults
+    const saved = readSavedBounds();
+    if (saved) {
+      applyBounds(wrap, saved);
+    } else {
+      wrap.style.width = "70vw";
+      wrap.style.height = "70vh";
+      wrap.style.left = "10px";
+      wrap.style.top = "10px";
+    }
 
     const bar = document.createElement("div");
     bar.className = "gpt-host-bar";
@@ -149,10 +226,16 @@
 
     (document.body || document.documentElement).appendChild(wrap);
 
-    // Enable dragging via the title bar
-    makeDraggable(wrap, bar);
-    // Enable ESC to close
+    if (!saved) {
+      centerDefaults(wrap);
+    }
+
+    makeDraggable(wrap, bar, () => saveBoundsFromElement(wrap));
     attachEscToClose(wrap);
+    observeResizeAndSave(wrap);
+
+    // Save initial bounds
+    saveBoundsFromElement(wrap);
 
     return body;
   }

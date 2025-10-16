@@ -11,11 +11,10 @@
   overflow: hidden; /* scrollbars live in the body, not the shell */
   box-sizing: border-box;
 
-  /* Bounds and look */
+  /* Remove viewport caps so it can be larger than the page viewport */
   min-width: 320px;
   min-height: 200px;
-  max-width: 95vw;
-  max-height: 90vh;
+  /* no max-width / max-height caps */
   background: #fff;
   color: #000;
   border: 1px solid #ccc;
