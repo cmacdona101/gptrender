@@ -95,55 +95,74 @@ function createZoomUI(mount) {
   // accidental style coupling and gives us a stable wheel target.
   viewport.style.position = "relative";
   viewport.style.width = "100%";
-  viewport.style.height = "calc(100% - 32px)";
-  viewport.style.overflow = "auto";
+  viewport.style.height = "100%";
+  // Make sizing exact and prevent padding/border from shrinking content box
+  viewport.style.boxSizing = "border-box";
+  viewport.style.padding = "0";
+  viewport.style.border = "0";
+  // Start hidden to avoid 1 px bars at 100% zoom
+  viewport.style.overflowX = "hidden";
+  viewport.style.overflowY = "hidden";
   viewport.style.background = "#fff";
 
   const canvas = document.createElement("div");
   canvas.style.transformOrigin = "0 0";
-  canvas.style.display = "inline-block";
+  // Block avoids baseline whitespace that can add extra vertical space
+  canvas.style.display = "block";
+  canvas.style.margin = "0";
+  canvas.style.padding = "0";
 
   viewport.appendChild(canvas);
   mount.innerHTML = "";
   mount.appendChild(controls);
   mount.appendChild(viewport);
 
-  return { controls, zoomOutBtn, zoomInBtn, resetBtn, fitBtn, pct, viewport, canvas };
-}
-
-function parseSvgIntrinsicSize(svgEl) {
-  // Keep the SVG unchanged. Use attributes or layout to estimate natural size.
-  // Graphviz typically sets width/height attributes in px or pt.
-  const wAttr = svgEl.getAttribute("width");
-  const hAttr = svgEl.getAttribute("height");
-
-  function parseLen(s) {
-    if (!s) return NaN;
-    const m = String(s).match(/([0-9]*\.?[0-9]+)/);
-    return m ? parseFloat(m[1]) : NaN;
+  function setViewportHeight(px) {
+    viewport.style.height = px + "px";
   }
 
-  let w = parseLen(wAttr);
-  let h = parseLen(hAttr);
+  return { controls, zoomOutBtn, zoomInBtn, resetBtn, fitBtn, pct, viewport, canvas, setViewportHeight };
 
+}
+
+
+function parseSvgIntrinsicSize(svgEl) {
+  // Best: use layout size after SVG is in the DOM
+  try {
+    if (svgEl.isConnected) {
+      const r = svgEl.getBoundingClientRect();
+      if (r && r.width && r.height) return { w: r.width, h: r.height };
+    }
+  } catch {}
+
+  // Next: attributes with unit handling (pt → px)
+  const wAttr = svgEl.getAttribute("width");
+  const hAttr = svgEl.getAttribute("height");
+  function parseLenWithUnits(s) {
+    if (!s) return NaN;
+    const m = String(s).trim().match(/^([0-9]*\.?[0-9]+)\s*(pt|px)?$/i);
+    if (!m) return NaN;
+    const val = parseFloat(m[1]);
+    const unit = (m[2] || "px").toLowerCase();
+    if (unit === "pt") return val * (96 / 72); // CSS px per pt
+    return val; // px or unitless treated as px
+  }
+  let w = parseLenWithUnits(wAttr);
+  let h = parseLenWithUnits(hAttr);
   if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
     return { w, h };
   }
 
-  // Fallback: use bounding box after it is in the DOM
+  // Next: SVG bbox (can throw if not in DOM or not rendered)
   try {
     const bb = svgEl.getBBox();
-    if (bb && bb.width && bb.height) {
-      return { w: bb.width, h: bb.height };
-    }
+    if (bb && bb.width && bb.height) return { w: bb.width, h: bb.height };
   } catch {}
 
-  // Last resort: client box
+  // Last: client box
   try {
     const r = svgEl.getBoundingClientRect();
-    if (r && r.width && r.height) {
-      return { w: r.width, h: r.height };
-    }
+    if (r && r.width && r.height) return { w: r.width, h: r.height };
   } catch {}
 
   // Fallback guess
@@ -161,6 +180,14 @@ function installZoomBehavior(ctx, svgEl) {
   // Insert SVG into canvas at scale 1 by default
   canvas.innerHTML = "";
   canvas.appendChild(svgEl);
+  
+  // Ensure SVG itself does not create baseline whitespace or max-size clamping
+  try {
+    svgEl.style.display = "block";
+    svgEl.style.margin = "0";
+    svgEl.style.maxWidth = "none";
+    svgEl.style.maxHeight = "none";
+  } catch {}
 
   function applyScale(next, opts = {}) {
     scale = Math.max(MIN, Math.min(MAX, next));
@@ -275,7 +302,31 @@ export async function renderDOT(dotText) {
     const mount = window.__gptHost.open();
     const ctx = createZoomUI(mount);
     installZoomBehavior(ctx, svgEl);
-    dbg("renderDOT: worker path success with zoom UI");
+	// Size overlay to the diagram at 100% plus the controls bar
+	requestAnimationFrame(() => {
+	  try {
+	    const size = parseSvgIntrinsicSize(svgEl);
+	    const controls = ctx.controls;
+	    const cs = getComputedStyle(controls);
+	    const controlsH = controls.getBoundingClientRect().height
+	      + parseFloat(cs.marginTop || "0")
+	      + parseFloat(cs.marginBottom || "0");
+		  // Pad the window body to avoid bars and add epsilon for rounding
+		  const EXTRA = 10; // your requested padding of the window
+		  const EPS   = 2;  // rounding safety
+		  const bodyW = Math.ceil(size.w + EXTRA + EPS);
+		  const bodyH = Math.ceil(controlsH + size.h + EXTRA + EPS);
+		  if (ctx.setViewportHeight) {
+		    // Height strictly matches SVG height plus epsilon, no bars at 100%
+		    ctx.setViewportHeight(Math.ceil(size.h + EPS));
+		    viewport.scrollTop = 0; viewport.scrollLeft = 0;
+		  }
+	    if (window.__gptHost && typeof window.__gptHost.sizeTo === "function") {
+	      window.__gptHost.sizeTo(bodyW, bodyH, { center: true, margin: 20 });
+	    }
+	  } catch (e) { warn("sizeTo after render failed", e); }
+	});
+	dbg("renderDOT: worker path success with zoom UI and initial sizing");
     return;
   } catch (e) {
     warn("renderDOT: worker path failed, will fallback. reason:", e && e.message ? e.message : e);
@@ -330,5 +381,27 @@ export async function renderDOT(dotText) {
   const mount = window.__gptHost.open();
   const ctx = createZoomUI(mount);
   installZoomBehavior(ctx, svgEl);
+  // Same sizing for fallback path
+  requestAnimationFrame(() => {
+    try {
+      const size = parseSvgIntrinsicSize(svgEl);
+      const controls = ctx.controls;
+      const cs = getComputedStyle(controls);
+      const controlsH = controls.getBoundingClientRect().height
+        + parseFloat(cs.marginTop || "0")
+        + parseFloat(cs.marginBottom || "0");
+		const EXTRA = 10;
+		const EPS   = 2;
+		const bodyW = Math.ceil(size.w + EXTRA + EPS);
+		const bodyH = Math.ceil(controlsH + size.h + EXTRA + EPS);
+		if (ctx.setViewportHeight) {
+		  ctx.setViewportHeight(Math.ceil(size.h + EPS));
+		  viewport.scrollTop = 0; viewport.scrollLeft = 0;
+		}
+      if (window.__gptHost && typeof window.__gptHost.sizeTo === "function") {
+        window.__gptHost.sizeTo(bodyW, bodyH, { center: true, margin: 20 });
+      }
+    } catch (e) { warn("sizeTo after render failed", e); }
+  });
   dbg("renderDOT: Module+render path success with zoom UI");
 }

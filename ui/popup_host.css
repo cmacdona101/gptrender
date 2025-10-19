@@ -25,31 +25,20 @@
   cursor: move;
 }
 
-.gpt-host-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  user-select: none;
-  cursor: inherit;
-}
 
-.gpt-host-bar button {
-  appearance: none;
-  border: 1px solid #bbb;
-  background: #f8f8f8;
-  color: #222;
-  border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-}
 
-.gpt-host-bar button:hover {
-  background: #f0f0f0;
-}
 
 .gpt-host-body {
   /* Fill remaining space so only inner content scrolls */
-  overflow: auto;
-  height: calc(100% - 40px); /* approx bar height plus spacing */
+  height: 100%;
+  overflow: hidden; /* ensure only the inner viewport can ever scroll */
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+}
+
+/* If any bar markup lingers in older builds, hide it defensively */
+.gpt-host-bar,
+.gpt-host-bar button {
+  display: none !important;
 }
