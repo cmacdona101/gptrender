@@ -1,11 +1,6 @@
 "use strict";
 
-/**
- * UI host module
- * Creates a reusable modal container on demand
- * Exposes window.__gptHost.open() -> returns a mount element
- * Variant: no clamping, raw bounds persisted and restored
- */
+
 
 (function () {
   if (window.__gptHost) return;
@@ -69,6 +64,38 @@
     wrap.style.height = Math.round(r.height) + "px";
     wrap.style.right = "";
   }
+  
+  
+  
+  // Size the host so that the BODY content area is approximately bodyW x bodyH.
+  // Adds host padding, clamps to viewport, optionally centers.
+  function sizeTo(bodyW, bodyH, { center = true, margin = 20 } = {}) {
+    const wrap = document.querySelector(".gpt-host-wrap");
+    if (!wrap) return;
+    // Host CSS uses padding: 12px on all sides
+    const PAD = 12 * 2;
+    const targetW = Math.max(MIN_W, Math.ceil(bodyW + PAD));
+    const targetH = Math.max(MIN_H, Math.ceil(bodyH + PAD));
+
+    const vp = getViewportBounds();
+    const maxW = Math.max(0, vp.w - margin);
+    const maxH = Math.max(0, vp.h - margin);
+
+    const finalW = Math.min(targetW, maxW);
+    const finalH = Math.min(targetH, maxH);
+
+    // If centering, recompute left/top so the box is centered after sizing
+    if (center) {
+      const left = Math.max(0, Math.floor((vp.w - finalW) / 2));
+      const top  = Math.max(0, Math.floor((vp.h - finalH) / 2));
+      applyBounds(wrap, { left, top, width: finalW, height: finalH });
+    } else {
+      const r = wrap.getBoundingClientRect();
+      applyBounds(wrap, { left: r.left, top: r.top, width: finalW, height: finalH });
+    }
+    saveBoundsFromElement(wrap);
+  }
+ 
 
   function centerDefaults(wrap) {
     const vp = getViewportBounds();
@@ -79,7 +106,7 @@
     applyBounds(wrap, { left, top, width, height });
   }
 
-  function makeDraggable(wrap, bar, onDragEnd) {
+  function makeDraggable(wrap, onDragEnd) {
     let dragging = false;
     let startX = 0;
     let startY = 0;
@@ -89,7 +116,14 @@
 
     function onMouseDown(e) {
       if (e.button !== 0) return;
-      if (e.target && (e.target.tagName === "BUTTON" || e.target.closest("button"))) return;
+	  if (e.target && (e.target.tagName === "BUTTON" || e.target.closest("button"))) return;
+	  // Let native resize handle work if user clicks near bottom-right corner
+	  const grip = 18; // px
+	  const r = wrap.getBoundingClientRect();
+	  if (e.clientX >= r.right - grip && e.clientY >= r.bottom - grip) {
+	    // Do not start drag. Native CSS resize will take over.
+	    return;
+	  }
 
       dragging = true;
       const rect = wrap.getBoundingClientRect();
@@ -136,7 +170,7 @@
       } catch {}
     }
 
-    bar.addEventListener("mousedown", onMouseDown, true);
+    wrap.addEventListener("mousedown", onMouseDown, true);
   }
 
   function attachEscToClose(wrap) {
@@ -204,33 +238,20 @@
       wrap.style.top = "10px";
     }
 
-    const bar = document.createElement("div");
-    bar.className = "gpt-host-bar";
-
-    const title = document.createElement("div");
-    title.textContent = "Diagram";
-
-    const close = document.createElement("button");
-    close.type = "button";
-    close.textContent = "Close";
-    close.addEventListener("click", () => wrap.remove());
-
-    bar.appendChild(title);
-    bar.appendChild(close);
 
     const body = document.createElement("div");
     body.className = "gpt-host-body";
 
-    wrap.appendChild(bar);
     wrap.appendChild(body);
 
     (document.body || document.documentElement).appendChild(wrap);
 
-    if (!saved) {
-      centerDefaults(wrap);
-    }
+	if (!saved) {
+	  // Temporary reasonable size. Renderer will call sizeTo() after measuring SVG.
+	  centerDefaults(wrap);
+	}
 
-    makeDraggable(wrap, bar, () => saveBoundsFromElement(wrap));
+    makeDraggable(wrap, () => saveBoundsFromElement(wrap));
     attachEscToClose(wrap);
     observeResizeAndSave(wrap);
 
@@ -240,5 +261,5 @@
     return body;
   }
 
-  window.__gptHost = { open: openHost };
+  window.__gptHost = { open: openHost, sizeTo };
 })();

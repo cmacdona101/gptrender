@@ -48,25 +48,14 @@ function createZoomUI(mount) {
   //   viewport (scroll container)
   //     canvas (scaled element that holds the SVG)
   const controls = document.createElement("div");
-  controls.style.display = "flex";
-  controls.style.alignItems = "center";
-  controls.style.gap = "8px";
-  controls.style.marginBottom = "8px";
-  controls.style.fontFamily = "ui-sans-serif, system-ui, Arial, sans-serif";
-  controls.style.fontSize = "12px";
+  controls.className = "gptrender-controls";
 
   const btn = (label, title) => {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = label;
     b.title = title || label;
-    b.style.padding = "4px 8px";
-    b.style.border = "1px solid #bbb";
-    b.style.background = "#f8f8f8";
-    b.style.borderRadius = "6px";
-    b.style.cursor = "pointer";
-    b.addEventListener("mouseenter", () => { b.style.background = "#f0f0f0"; });
-    b.addEventListener("mouseleave", () => { b.style.background = "#f8f8f8"; });
+	b.className = "gptrender-btn";
     return b;
   };
 
@@ -76,12 +65,11 @@ function createZoomUI(mount) {
   const fitBtn     = btn("Fit", "Fit to overlay");
 
   const spacer = document.createElement("div");
-  spacer.style.flex = "1 1 auto";
+  spacer.className = "gptrender-spacer";
 
   const pct = document.createElement("span");
+  pct.className = "gptrender-zoom-pct";
   pct.textContent = "100%";
-  pct.style.minWidth = "48px";
-  pct.style.textAlign = "right";
 
   controls.appendChild(zoomOutBtn);
   controls.appendChild(zoomInBtn);
@@ -91,26 +79,12 @@ function createZoomUI(mount) {
   controls.appendChild(pct);
 
   const viewport = document.createElement("div");
-  // The outer .gpt-host-body already scrolls, but an inner viewport prevents
-  // accidental style coupling and gives us a stable wheel target.
-  viewport.style.position = "relative";
-  viewport.style.width = "100%";
-  viewport.style.height = "100%";
-  // Make sizing exact and prevent padding/border from shrinking content box
-  viewport.style.boxSizing = "border-box";
-  viewport.style.padding = "0";
-  viewport.style.border = "0";
-  // Start hidden to avoid 1 px bars at 100% zoom
-  viewport.style.overflowX = "hidden";
-  viewport.style.overflowY = "hidden";
-  viewport.style.background = "#fff";
+  // Inner viewport prevents accidental style coupling and gives a stable wheel target.
+  viewport.className = "gptrender-viewport";
 
   const canvas = document.createElement("div");
+  canvas.className = "gptrender-canvas";
   canvas.style.transformOrigin = "0 0";
-  // Block avoids baseline whitespace that can add extra vertical space
-  canvas.style.display = "block";
-  canvas.style.margin = "0";
-  canvas.style.padding = "0";
 
   viewport.appendChild(canvas);
   mount.innerHTML = "";
@@ -194,7 +168,10 @@ function installZoomBehavior(ctx, svgEl) {
     canvas.style.transform = `scale(${scale})`;
     pct.textContent = Math.round(scale * 100) + "%";
 
-    if (opts.centerOnZoom && viewport) {
+	// Scrollbars only when zoomed
+	viewport.style.overflowX = (scale === 1) ? "hidden" : "auto";
+	viewport.style.overflowY = (scale === 1) ? "hidden" : "auto";
+	if (opts.centerOnZoom && viewport) {
       // Try to keep the center of the viewport approximately stable
       const cx = viewport.scrollLeft + viewport.clientWidth / 2;
       const cy = viewport.scrollTop + viewport.clientHeight / 2;
