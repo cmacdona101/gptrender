@@ -26,6 +26,23 @@
 }
 
 
+/* Visual resize grip in the bottom-right corner */
+.gpt-host-wrap::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none; /* keep native handle clickable */
+  background:
+    linear-gradient(135deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.25) 50%) 0 0/8px 8px,
+    linear-gradient(135deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.25) 50%) 4px 4px/8px 8px;
+  opacity: 0.6;
+}
+
+
+
 
 
 .gpt-host-body {

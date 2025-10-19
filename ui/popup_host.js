@@ -116,7 +116,14 @@
 
     function onMouseDown(e) {
       if (e.button !== 0) return;
-      if (e.target && (e.target.tagName === "BUTTON" || e.target.closest("button"))) return;
+	  if (e.target && (e.target.tagName === "BUTTON" || e.target.closest("button"))) return;
+	  // Let native resize handle work if user clicks near bottom-right corner
+	  const grip = 18; // px
+	  const r = wrap.getBoundingClientRect();
+	  if (e.clientX >= r.right - grip && e.clientY >= r.bottom - grip) {
+	    // Do not start drag. Native CSS resize will take over.
+	    return;
+	  }
 
       dragging = true;
       const rect = wrap.getBoundingClientRect();
