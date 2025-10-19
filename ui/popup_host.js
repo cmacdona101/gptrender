@@ -230,7 +230,7 @@
       centerDefaults(wrap);
     }
 
-    makeDraggable(wrap, bar, () => saveBoundsFromElement(wrap));
+    makeDraggable(wrap, wrap, () => saveBoundsFromElement(wrap));
     attachEscToClose(wrap);
     observeResizeAndSave(wrap);
 
