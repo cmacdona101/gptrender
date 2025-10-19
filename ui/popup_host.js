@@ -13,6 +13,7 @@
   const STORAGE_KEY = `gptd_host_bounds_v1:${location.host}`;
   const MIN_W = 320;
   const MIN_H = 200;
+  const PFX = "[Diagrams DBG][HOST]";
 
   function getViewportBounds() {
     return {
@@ -78,6 +79,33 @@
     const top = Math.floor((vp.h - height) / 2);
     applyBounds(wrap, { left, top, width, height });
   }
+  
+  // Hard center using viewport units; ignores saved pixel bounds
+  function forceCenter(wrap) {
+    // Clear pixel positioning first
+    wrap.style.left = "";
+    wrap.style.top = "";
+    wrap.style.width = "";
+    wrap.style.height = "";
+    // Center and size with viewport-relative geometry
+    wrap.style.left = "50vw";
+    wrap.style.top = "50vh";
+    wrap.style.transform = "translate(-50%, -50%)";
+    wrap.style.width = "80vw";
+    wrap.style.height = "80vh";
+    // Ensure visible area
+    wrap.style.maxHeight = "80vh";
+    wrap.style.overflow = "auto";
+    // Don’t persist this hard-center into saved pixel bounds
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    // Log the new rect after layout
+    requestAnimationFrame(() => {
+      const r = wrap.getBoundingClientRect();
+      // eslint-disable-next-line no-console
+      console.log(PFX, "forceCenter rect:", r);
+    });
+  }
+
 
   function makeDraggable(wrap, bar, onDragEnd) {
     let dragging = false;
@@ -192,6 +220,17 @@
 
     const wrap = document.createElement("div");
     wrap.className = "gpt-host-wrap";
+	// Minimal inline geometry that resists page CSS overrides
+	wrap.style.position = "fixed";
+	wrap.style.zIndex = "2147483647";
+	wrap.style.pointerEvents = "auto";
+	wrap.style.background = "#fff";
+	wrap.style.color = "#000";
+	wrap.style.border = "1px solid #ccc";
+	wrap.style.borderRadius = "8px";
+	wrap.style.padding = "12px";
+	wrap.style.maxHeight = "80vh";
+	wrap.style.overflow = "auto";
 
     // Initial size and position: try restore, else center defaults
     const saved = readSavedBounds();
@@ -206,20 +245,39 @@
 
     const bar = document.createElement("div");
     bar.className = "gpt-host-bar";
+	// Inline layout for the bar to avoid page flex/CSS collisions
+	bar.style.display = "flex";
+	bar.style.justifyContent = "space-between";
+	bar.style.alignItems = "center";
+	bar.style.marginBottom = "8px";
 
     const title = document.createElement("div");
     title.textContent = "Diagram";
+	// Make the title readable regardless of page fonts
+	title.style.fontWeight = "600";
+	title.style.fontSize = "14px";
+	title.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
 
     const close = document.createElement("button");
     close.type = "button";
     close.textContent = "Close";
     close.addEventListener("click", () => wrap.remove());
+	// Make the close button look like a button even if page resets styles
+	close.style.cursor = "pointer";
+	close.style.border = "1px solid #ccc";
+	close.style.borderRadius = "6px";
+	close.style.padding = "4px 10px";
+	close.style.background = "#f3f4f6";
+	close.style.color = "#111";
 
     bar.appendChild(title);
     bar.appendChild(close);
 
     const body = document.createElement("div");
     body.className = "gpt-host-body";
+	
+	body.style.overflow = "auto";
+	body.style.minHeight = "200px";
 
     wrap.appendChild(bar);
     wrap.appendChild(body);
@@ -236,9 +294,64 @@
 
     // Save initial bounds
     saveBoundsFromElement(wrap);
+	
+	
+	// Nudge Firefox to repaint fixed overlays and log rects
+	try {
+	  // Tiny scroll jiggle helps some pages force a paint of fixed layers
+	  window.scrollBy(0, 1);
+	  window.scrollBy(0, -1);
+	} catch {}
+	try {
+	  requestAnimationFrame(() => {
+	    const vp = getViewportBounds();
+	    const r = wrap.getBoundingClientRect();
+	    // eslint-disable-next-line no-console
+	    console.log(PFX, "mounted rect:", r, "vp:", vp);
+	    // If the popup is offscreen or tiny, force a centered viewport modal
+	    const tooSmall = (r.width < 40 || r.height < 40);
+	    const offRight = r.left >= vp.w || r.right <= 0;
+	    const offBottom = r.top >= vp.h || r.bottom <= 0;
+	    const offscreen = offRight || offBottom;
+	    if (tooSmall || offscreen) {
+	      console.warn(PFX, "offscreen/tiny detected — forcing center");
+	      forceCenter(wrap);
+	    }
+	  });
+	} catch {}
 
-    return body;
+	
+
+	// Observe for appended SVGs and style them so they paint visibly
+	try {
+	  const mo = new MutationObserver(() => {
+	    const svg = body.querySelector("svg");
+	    if (svg) {
+	      svg.style.display = "block";
+	      svg.style.maxWidth = "100%";
+	      svg.style.height = "auto";
+	      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+	      requestAnimationFrame(() => {
+	        const rs = svg.getBoundingClientRect();
+	        const rb = body.getBoundingClientRect();
+	        // eslint-disable-next-line no-console
+	        console.log(PFX, "svg rect:", rs, "body rect:", rb);
+	      });
+	    }
+	  });
+	  mo.observe(body, { childList: true, subtree: true });
+	  const cleanup = new MutationObserver(() => {
+	    if (!document.body.contains(wrap)) {
+	      try { mo.disconnect(); } catch {}
+	      cleanup.disconnect();
+	    }
+	  });
+	  cleanup.observe(document.body, { childList: true, subtree: true });
+	} catch {}
+
+	return body;
   }
 
-  window.__gptHost = { open: openHost };
+  // Also style SVGs when renderer assigns innerHTML
+window.__gptHost = { open: openHost };
 })();

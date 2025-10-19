@@ -21,7 +21,9 @@
   border-radius: 8px;
   padding: 12px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  /* make absolutely sure we sit on top and receive events */
   z-index: 2147483647;
+  pointer-events: auto;
 }
 
 .gpt-host-bar {
@@ -50,5 +52,6 @@
 .gpt-host-body {
   /* Fill remaining space so only inner content scrolls */
   overflow: auto;
-  height: calc(100% - 40px); /* approx bar height plus spacing */
+  min-height: 200px;
+  
 }

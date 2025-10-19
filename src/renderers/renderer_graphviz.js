@@ -270,13 +270,50 @@ export async function renderDOT(dotText) {
   const workerURL = rtGetURL("vendor/graphviz/full.render.js");
   try {
     dbg("renderDOT: trying workerURL", workerURL);
-    const viz = new VizGlobal({ workerURL });
-    const svgEl = await viz.renderSVGElement(dotText);
-    const mount = window.__gptHost.open();
-    const ctx = createZoomUI(mount);
-    installZoomBehavior(ctx, svgEl);
-    dbg("renderDOT: worker path success with zoom UI");
-    return;
+
+	
+	const viz = new VizGlobal({ workerURL });
+	const mount = window.__gptHost.open();
+	mount.id = "gpt-diagrams-host";
+	mount.style.minHeight = "200px";
+	mount.style.maxHeight = "80vh";
+	mount.style.overflow = "auto";
+	mount.innerHTML = "";
+
+	const svgEl = await viz.renderSVGElement(dotText);
+	// Make sure the SVG can actually occupy space
+	svgEl.style.display = "block";
+	svgEl.style.maxWidth = "100%";
+	svgEl.style.height = "auto";
+	svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
+	mount.appendChild(svgEl);
+
+	// Measure after layout; if zero box, try string fallback
+	await new Promise(r => requestAnimationFrame(r));
+	const r1 = mount.getBoundingClientRect();
+	const r2 = svgEl.getBoundingClientRect();
+	dbg("renderDOT: worker path success, host rect:", r1, "svg rect:", r2);
+	if ((r2.width === 0 && r2.height === 0) || (r1.width === 0 && r1.height === 0)) {
+	  warn("renderDOT: zero-size after element path, retrying with renderString()");
+	  const svgStr = await viz.renderString(dotText);
+	  mount.innerHTML = svgStr;
+	  const svg = mount.querySelector("svg");
+	  if (svg) {
+	    svg.style.display = "block";
+	    svg.style.maxWidth = "100%";
+	    svg.style.height = "auto";
+	    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+	  }
+	  await new Promise(r => requestAnimationFrame(r));
+	  const rrHost = mount.getBoundingClientRect();
+	  const rrSvg  = svg ? svg.getBoundingClientRect() : { width: 0, height: 0 };
+	  dbg("renderDOT: string fallback rects:", rrHost, rrSvg);
+	}
+	// Scroll host into view to avoid “it rendered offscreen”
+	try { mount.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {}
+	return;
+	
+	
   } catch (e) {
     warn("renderDOT: worker path failed, will fallback. reason:", e && e.message ? e.message : e);
   }
@@ -325,10 +362,51 @@ export async function renderDOT(dotText) {
   }
 
   // 4) Module+render fallback without worker
+
+  
+  
   const viz2 = new VizGlobal({ Module: ModuleGlobal, render: renderGlobal });
-  const svgEl = await viz2.renderSVGElement(dotText);
   const mount = window.__gptHost.open();
-  const ctx = createZoomUI(mount);
-  installZoomBehavior(ctx, svgEl);
+  mount.id = "gpt-diagrams-host";
+  mount.style.minHeight = "200px";
+  mount.style.maxHeight = "80vh";
+  mount.style.overflow = "auto";
+  mount.innerHTML = "";
+
+  // First try element path
+  let usedStringFallback = false;
+  try {
+    const svgEl = await viz2.renderSVGElement(dotText);
+    svgEl.style.display = "block";
+    svgEl.style.maxWidth = "100%";
+    svgEl.style.height = "auto";
+    svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    mount.appendChild(svgEl);
+    await new Promise(r => requestAnimationFrame(r));
+    const r1 = mount.getBoundingClientRect();
+    const r2 = svgEl.getBoundingClientRect();
+    dbg("renderDOT: Module+render element rects:", r1, r2);
+    if ((r2.width === 0 && r2.height === 0) || (r1.width === 0 && r1.height === 0)) {
+      usedStringFallback = true;
+      throw new Error("zero-size after element path");
+    }
+  } catch (e) {
+    warn("renderDOT: element path yielded no visible box — using renderString()", e && e.message ? e.message : e);
+    const svgStr = await viz2.renderString(dotText);
+    mount.innerHTML = svgStr;
+    const svg = mount.querySelector("svg");
+    if (svg) {
+      svg.style.display = "block";
+      svg.style.maxWidth = "100%";
+      svg.style.height = "auto";
+      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    }
+    await new Promise(r => requestAnimationFrame(r));
+    const rrHost = mount.getBoundingClientRect();
+    const rrSvg  = svg ? svg.getBoundingClientRect() : { width: 0, height: 0 };
+    dbg("renderDOT: Module+render string rects:", rrHost, rrSvg, "fallbackUsed:", usedStringFallback);
+  }
+  try { mount.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {}
+  
   dbg("renderDOT: Module+render path success with zoom UI");
 }
